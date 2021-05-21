@@ -1,0 +1,236 @@
+/*
+					
+	A. CREATE DATABASE
+	B. CREATE SYMMETRIC ENCRYPTION
+	C. DROP CONSTARINT ( FK , UNIQUE, DEFAULT ) 
+	D. DROP STORE PROCEDURE
+	E. DROP USER DEFINE TABLE TYPE ( UDT )
+	F. DROP AND CREATE FUNCTIONS
+	G. DROP AND CREATE TABLE
+	I. CREATE CONSTARINT ( FK , UNIQUE, DEFAULT )
+	J. CREATE USER DEFINE TABLE TYPE ( UDT )
+	K. CREATE STORE PROCEDURE
+	L. CREATE TRIGGER
+	M. DATA INSERT SCRIPTS ( Using SSMS Import wizard , Store Procedure and Insert SQL scripts ) 
+	N. CREATE VIEW
+NOTE:- 
+	1. Used Column Data Encryption for Password Column in dbo.Employee Table
+	2. Table-level CHECK Constraints based on a function
+		- Add a table check constraint on dbo.EmployeeDetails to insert data in case age of the employee between 19 and 60 .
+			 CONSTRAINT CHECK_EmployeeDetails_Age CHECK (dbo.fn_CalculateAge([DateOfBirth]) BETWEEN 19 AND 60)
+		- Add a table check constraint on dbo.PatientAppointment  to insert only employeeID which role is doctor.
+			 CONSTRAINT CHECK_PatientAppoitment_Doctor CHECK ([dbo].[fn_GetEmployeeRole]([EmployeeID]) = 'Doctor'),
+	3. Computed Columns based on a function
+		- add PatientRegNo as Computed column in dbo.patient by calling a function fn_generatePatientRegNo . This function has a logic to generate Reg number.
+			[PatientRegNo] AS ([dbo].[fn_GeneratePatientRegNo]([FirstName],[LastName],[DateOfBirth])),
+		- add Comment as Computed column in dbo.PatientLabReport by calling a function fn_getcommentforLabReport . Depending on Lab result this function
+		  will determinde whether the result is positive or Negative.
+		  [Comment] AS (dbo.fn_GetCommentsForLabReport([LabTestID], [TestValue]))
+	4. Views for Report:- 
+		- [dbo].[vw_GetDiseaseCount] --- This will return Number of Patient for each disease
+		- [dbo].[vw_GetPatientDetails] --This will return Patient Details. 
+		- [dbo].[vw_GetEmployeeDetails] -- This will return Employee Details.
+	5. Triggers:- 
+		- tr_UpdateLabReportBilling : This trigger will insert billing information in dbo.PatientBilling table depend on the Labtest from dbo.PatientLabReport Table.
+		- tr_UpdateAttendantBilling : This trigger will insert billing information in dbo.PatientBilling table depend on the Attendant from dbo.PatientAttendant Table.
+*/
+
+/************************************************************************************************/
+--- A. CREATE DATABASE
+/************************************************************************************************/
+IF DB_ID('HospitalManagementSystem') IS NULL
+BEGIN
+	CREATE DATABASE HospitalManagementSystem
+END
+
+GO
+/***********************************************************************************************/
+---- B. CREATE SYMMETRIC ENCRYPTION
+/***********************************************************************************************/
+USE HospitalManagementSystem
+CREATE MASTER KEY
+ENCRYPTION BY PASSWORD = 'Bp5PynEH3T;2gzJd';
+
+-- Create certificate to protect symmetric key
+CREATE CERTIFICATE HospitalManagementCertificate
+WITH SUBJECT = 'HospitalManagement Certificate',
+EXPIRY_DATE = '2026-10-31';
+
+-- Create symmetric key to encrypt data
+CREATE SYMMETRIC KEY HospitalManagementSymmetricKey
+WITH ALGORITHM = AES_128
+ENCRYPTION BY CERTIFICATE HospitalManagementCertificate;
+
+-- Open symmetric key
+OPEN SYMMETRIC KEY HospitalManagementSymmetricKey
+DECRYPTION BY CERTIFICATE HospitalManagementCertificate;
+
+
+GO
+/*------------------------------------------------------------------------------
+C. DROP CONSTARINT ( FK , UNIQUE, DEFAULT ) 
+--------------------------------------------------------------------------------*/
+USE HospitalManagementSystem
+GO
+IF (OBJECT_ID('FK_EmployeeDetails_Employee_IDX', 'F') IS NOT NULL)
+BEGIN
+		ALTER TABLE dbo.EmployeeDetails  DROP  CONSTRAINT [FK_EmployeeDetails_Employee_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeDetails_Role_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeDetails  DROP  CONSTRAINT [FK_EmployeeDetails_Role_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeDepartment_Employee_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeDepartment  DROP  CONSTRAINT [FK_EmployeeDepartment_Employee_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeDepartment_Department_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeDepartment  DROP  CONSTRAINT [FK_EmployeeDepartment_Department_IDX]
+END
+IF (OBJECT_ID('FK_PatientInsurance_Patient_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientInsurance  DROP  CONSTRAINT [FK_PatientInsurance_Patient_IDX]
+END
+IF (OBJECT_ID('FK_PatientRegister_Patient_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientRegister  DROP  CONSTRAINT [FK_PatientRegister_Patient_IDX]
+END
+IF (OBJECT_ID('FK_PatientRegister_PatientInsurance_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientRegister  DROP  CONSTRAINT [FK_PatientRegister_PatientInsurance_IDX]
+END
+IF (OBJECT_ID('FK_PatientBilling_PatientRegister_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientBilling  DROP  CONSTRAINT [FK_PatientBilling_PatientRegister_IDX]
+END
+IF (OBJECT_ID('FK_PatientBilling_PatientAddress_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientBilling  DROP  CONSTRAINT [FK_PatientBilling_PatientAddress_IDX]
+END
+IF (OBJECT_ID('FK_PatientLabReport_PatientRegister_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientLabReport  DROP  CONSTRAINT [FK_PatientLabReport_PatientRegister_IDX]
+END
+IF (OBJECT_ID('FK_PatientLabReport_LabTest_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientLabReport  DROP  CONSTRAINT [FK_PatientLabReport_LabTest_IDX]
+END
+IF (OBJECT_ID('FK_PatientDisease_PatientRegister_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientDisease  DROP  CONSTRAINT [FK_PatientDisease_PatientRegister_IDX]
+END
+IF (OBJECT_ID('FK_PatientDisease_Disease_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientDisease  DROP  CONSTRAINT [FK_PatientDisease_Disease_IDX]
+END
+IF (OBJECT_ID('FK_PatientAppoitment_Patient_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAppointment  DROP  CONSTRAINT [FK_PatientAppoitment_Patient_IDX]
+END
+IF (OBJECT_ID('FK_PatientAppoitment_Employee_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAppointment  DROP  CONSTRAINT [FK_PatientAppoitment_Employee_IDX]
+END
+IF (OBJECT_ID('FK_PatientAttendant_PatientRegister_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAttendant  DROP  CONSTRAINT [FK_PatientAttendant_PatientRegister_IDX]
+END
+IF (OBJECT_ID('FK_PatientAttendant_Employee_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAttendant  DROP  CONSTRAINT [FK_PatientAttendant_Employee_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeAddressMapping_EmployeeDetails_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeAddressMapping  DROP  CONSTRAINT [FK_EmployeeAddressMapping_EmployeeDetails_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeAddressMapping_AddressType_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeAddressMapping  DROP  CONSTRAINT [FK_EmployeeAddressMapping_AddressType_IDX]
+END
+IF (OBJECT_ID('FK_EmployeeAddressMapping_Address_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeAddressMapping  DROP  CONSTRAINT [FK_EmployeeAddressMapping_Address_IDX]
+END
+IF (OBJECT_ID('FK_PatientAddressMapping_Patient_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAddressMapping  DROP  CONSTRAINT [FK_PatientAddressMapping_Patient_IDX]
+END
+IF (OBJECT_ID('FK_PatientAddressMapping_AddressType_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAddressMapping  DROP  CONSTRAINT [FK_PatientAddressMapping_AddressType_IDX]
+END
+IF (OBJECT_ID('FK_PatientAddressMapping_Address_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAddressMapping  DROP  CONSTRAINT [FK_PatientAddressMapping_Address_IDX]
+END
+IF (OBJECT_ID('FK_Feedback_Patient_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.Feedback DROP  CONSTRAINT [FK_Feedback_Patient_IDX] 
+END
+IF (OBJECT_ID('FK_Feedback_Employee_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.Feedback  DROP CONSTRAINT [FK_Feedback_Employee_IDX] 
+END
+IF (OBJECT_ID('FK_Employee_CreatedBy_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.employee  DROP CONSTRAINT [FK_Employee_CreatedBy_IDX]
+END
+IF (OBJECT_ID('FK_PatientAppointment_CreatedBy_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAppointment  DROP CONSTRAINT FK_PatientAppointment_CreatedBy_IDX
+END
+IF (OBJECT_ID('FK_PatientRegister_CreatedBy_IDX', 'F') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientRegister  DROP CONSTRAINT FK_PatientRegister_CreatedBy_IDX
+END
+
+IF (OBJECT_ID('UQ_EmployeeDetails_EmployeeID', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeDetails DROP CONSTRAINT UQ_EmployeeDetails_EmployeeID
+END
+IF (OBJECT_ID('UQ_Address', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.Address DROP CONSTRAINT UQ_Address
+END
+--IF (OBJECT_ID('UQ_Patient_PatientRegNo', 'UQ') IS NOT NULL)
+--BEGIN
+--	ALTER TABLE dbo.Patient DROP CONSTRAINT UQ_Patient_PatientRegNo
+--END
+IF (OBJECT_ID('UQ_PatientRegister_PatientID_AdmittedON', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientRegister DROP CONSTRAINT UQ_PatientRegister_PatientID_AdmittedON
+END
+IF (OBJECT_ID('UQ_PatientAddressMapping', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAddressMapping DROP CONSTRAINT UQ_PatientAddressMapping
+END
+IF (OBJECT_ID('UQ_PatientLabReport', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientLabReport DROP CONSTRAINT UQ_PatientLabReport
+END
+IF (OBJECT_ID('UQ_EmployeeAddressMapping', 'UQ') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.EmployeeAddressMapping DROP CONSTRAINT UQ_EmployeeAddressMapping
+END
+IF (OBJECT_ID('DF_Feedback_CreatedON', 'D') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.Feedback DROP CONSTRAINT DF_Feedback_CreatedON
+END
+IF (OBJECT_ID('DF_Employee_CreatedON', 'D') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.Employee DROP CONSTRAINT DF_Employee_CreatedON
+END
+IF (OBJECT_ID('DF_PatientAppointment_CreatedON', 'D') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientAppointment DROP CONSTRAINT DF_PatientAppointment_CreatedON
+END
+IF (OBJECT_ID('DF_PatientRegister_CreatedON', 'D') IS NOT NULL)
+BEGIN
+	ALTER TABLE dbo.PatientRegister DROP CONSTRAINT DF_PatientRegister_CreatedON
+END
+
+
+
+
+GO
