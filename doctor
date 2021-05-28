@@ -1,0 +1,8 @@
+CREATE TABLE doctor ( 
+doctorid number PRIMARY KEY NOT NULL, 
+doctor_name text NULL, 
+dept_name text NULL, 
+hospital_id number NULL, 
+city text NULL, 
+salary number NULL
+); 
