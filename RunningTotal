@@ -1,0 +1,11 @@
+select date(date_joined),count(user_id) 
+       from users 
+       group by date(date_joined);
+set @csum := 0;
+select date_joined,new_users, (@csum := @csum + new_users) as total_users
+            from (
+             select date(date_joined) as date_joined,count(user_id) as new_users
+             from users
+             group by date(date_joined)
+            ) as temp
+            order by date_joined;       
